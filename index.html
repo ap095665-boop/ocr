@@ -2,44 +2,42 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Auto HDR Image Enhancer</title>
+<title>Image Style Generator</title>
+
 <style>
 body {
-    font-family: Arial;
     background: #111;
     color: #fff;
     text-align: center;
-    padding: 20px;
-}
-
-input {
-    margin: 20px;
+    font-family: Arial;
 }
 
 canvas {
     max-width: 100%;
-    border-radius: 10px;
     margin-top: 20px;
+    border-radius: 10px;
 }
 
 button {
-    padding: 10px 20px;
-    background: #00ffcc;
+    margin: 10px;
+    padding: 10px 15px;
     border: none;
+    background: #00ffcc;
     cursor: pointer;
     border-radius: 5px;
-    font-weight: bold;
 }
 </style>
 </head>
 
 <body>
 
-<h2>Auto HDR Image Generator</h2>
+<h2>🎨 Image Style Generator</h2>
 
-<input type="file" id="upload" accept="image/*">
-<br>
-<button onclick="processImage()">Enhance Image</button>
+<input type="file" id="upload"><br>
+
+<button onclick="applySketch()">Sketch</button>
+<button onclick="applyCartoon()">Cartoon</button>
+<button onclick="applyOil()">Oil Paint</button>
 
 <br>
 <canvas id="canvas"></canvas>
@@ -48,116 +46,98 @@ button {
 let img = new Image();
 
 document.getElementById("upload").addEventListener("change", function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
+    let reader = new FileReader();
     reader.onload = function(event) {
         img.src = event.target.result;
     }
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(e.target.files[0]);
 });
 
-function processImage() {
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+function drawBase() {
+    let canvas = document.getElementById("canvas");
+    let ctx = canvas.getContext("2d");
 
     canvas.width = img.width;
     canvas.height = img.height;
 
     ctx.drawImage(img, 0, 0);
+    return ctx;
+}
+
+// ✏️ SKETCH EFFECT
+function applySketch() {
+    let ctx = drawBase();
+    let canvas = ctx.canvas;
 
     let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let data = imageData.data;
 
-    let totalBrightness = 0;
-    let totalColor = 0;
-
-    // ANALYZE IMAGE
+    // grayscale + edge detection
     for (let i = 0; i < data.length; i += 4) {
-        let r = data[i];
-        let g = data[i+1];
-        let b = data[i+2];
-
-        let brightness = (r + g + b) / 3;
-        totalBrightness += brightness;
-
-        totalColor += Math.abs(r - g) + Math.abs(g - b);
+        let gray = (data[i] + data[i+1] + data[i+2]) / 3;
+        data[i] = data[i+1] = data[i+2] = gray;
     }
 
-    let avgBrightness = totalBrightness / (data.length / 4);
-    let avgColor = totalColor / (data.length / 4);
-
-    // AUTO SETTINGS
-    let brightnessBoost = avgBrightness < 120 ? 1.2 : 1.05;
-    let contrastBoost = avgBrightness < 120 ? 1.3 : 1.1;
-    let saturationBoost = avgColor < 50 ? 1.4 : 1.1;
-
-    // APPLY ENHANCEMENT
+    // invert
     for (let i = 0; i < data.length; i += 4) {
-
-        let r = data[i];
-        let g = data[i+1];
-        let b = data[i+2];
-
-        // brightness
-        r *= brightnessBoost;
-        g *= brightnessBoost;
-        b *= brightnessBoost;
-
-        // contrast
-        r = ((r - 128) * contrastBoost) + 128;
-        g = ((g - 128) * contrastBoost) + 128;
-        b = ((b - 128) * contrastBoost) + 128;
-
-        // saturation
-        let gray = (r + g + b) / 3;
-        r = gray + (r - gray) * saturationBoost;
-        g = gray + (g - gray) * saturationBoost;
-        b = gray + (b - gray) * saturationBoost;
-
-        // clamp values
-        data[i] = Math.min(255, Math.max(0, r));
-        data[i+1] = Math.min(255, Math.max(0, g));
-        data[i+2] = Math.min(255, Math.max(0, b));
+        data[i] = 255 - data[i];
+        data[i+1] = 255 - data[i+1];
+        data[i+2] = 255 - data[i+2];
     }
 
     ctx.putImageData(imageData, 0, 0);
-
-    // SHARPEN FILTER (HDR feel)
-    applySharpen(ctx, canvas.width, canvas.height);
 }
 
-function applySharpen(ctx, width, height) {
-    let imageData = ctx.getImageData(0, 0, width, height);
+// 🎭 CARTOON EFFECT
+function applyCartoon() {
+    let ctx = drawBase();
+    let canvas = ctx.canvas;
+
+    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let data = imageData.data;
 
-    let kernel = [
-        0, -1, 0,
-       -1,  5, -1,
-        0, -1, 0
-    ];
+    for (let i = 0; i < data.length; i += 4) {
+        // reduce colors (posterization)
+        data[i] = Math.floor(data[i] / 64) * 64;
+        data[i+1] = Math.floor(data[i+1] / 64) * 64;
+        data[i+2] = Math.floor(data[i+2] / 64) * 64;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+}
+
+// 🖌 OIL PAINT EFFECT
+function applyOil() {
+    let ctx = drawBase();
+    let canvas = ctx.canvas;
+
+    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let data = imageData.data;
+    let width = canvas.width;
+
+    let radius = 2;
 
     let copy = new Uint8ClampedArray(data);
 
-    for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
+    for (let y = radius; y < canvas.height - radius; y++) {
+        for (let x = radius; x < canvas.width - radius; x++) {
+
+            let r = 0, g = 0, b = 0, count = 0;
+
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    let i = ((y + dy) * width + (x + dx)) * 4;
+                    r += copy[i];
+                    g += copy[i+1];
+                    b += copy[i+2];
+                    count++;
+                }
+            }
 
             let i = (y * width + x) * 4;
-
-            for (let c = 0; c < 3; c++) {
-                let sum = 0;
-                let k = 0;
-
-                for (let ky = -1; ky <= 1; ky++) {
-                    for (let kx = -1; kx <= 1; kx++) {
-                        let idx = ((y + ky) * width + (x + kx)) * 4 + c;
-                        sum += copy[idx] * kernel[k++];
-                    }
-                }
-
-                data[i + c] = Math.min(255, Math.max(0, sum));
-            }
+            data[i] = r / count;
+            data[i+1] = g / count;
+            data[i+2] = b / count;
         }
     }
 
