@@ -2,147 +2,115 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Image Style Generator</title>
-
+<title>Fluid Neon Blob</title>
 <style>
 body {
-    background: #111;
-    color: #fff;
-    text-align: center;
-    font-family: Arial;
+  margin: 0;
+  overflow: hidden;
+  background: black;
 }
-
 canvas {
-    max-width: 100%;
-    margin-top: 20px;
-    border-radius: 10px;
-}
-
-button {
-    margin: 10px;
-    padding: 10px 15px;
-    border: none;
-    background: #00ffcc;
-    cursor: pointer;
-    border-radius: 5px;
+  display: block;
 }
 </style>
 </head>
-
 <body>
 
-<h2>🎨 Image Style Generator</h2>
-
-<input type="file" id="upload"><br>
-
-<button onclick="applySketch()">Sketch</button>
-<button onclick="applyCartoon()">Cartoon</button>
-<button onclick="applyOil()">Oil Paint</button>
-
-<br>
-<canvas id="canvas"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-let img = new Image();
+let scene = new THREE.Scene();
+let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.z = 2;
 
-document.getElementById("upload").addEventListener("change", function(e) {
-    let reader = new FileReader();
-    reader.onload = function(event) {
-        img.src = event.target.result;
+let renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// GEOMETRY (blob)
+let geometry = new THREE.SphereGeometry(0.8, 128, 128);
+
+// SHADER MATERIAL (neon + fluid)
+let material = new THREE.ShaderMaterial({
+  uniforms: {
+    time: { value: 0 },
+    touch: { value: new THREE.Vector2(0, 0) }
+  },
+
+  vertexShader: `
+    uniform float time;
+    uniform vec2 touch;
+    varying vec2 vUv;
+
+    void main() {
+      vUv = uv;
+
+      vec3 pos = position;
+
+      float dist = distance(uv, touch);
+
+      // organic wave
+      pos += normal * sin(time * 2.0 + pos.y * 5.0) * 0.08;
+
+      // touch distortion
+      pos += normal * (0.3 / (dist + 0.1));
+
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
-    reader.readAsDataURL(e.target.files[0]);
+  `,
+
+  fragmentShader: `
+    varying vec2 vUv;
+    uniform float time;
+
+    void main() {
+      vec3 color;
+
+      // neon gradient
+      color.r = 0.5 + 0.5 * sin(time + vUv.x * 6.0);
+      color.g = 0.5 + 0.5 * sin(time + vUv.y * 6.0);
+      color.b = 0.8 + 0.5 * sin(time);
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `
 });
 
-function drawBase() {
-    let canvas = document.getElementById("canvas");
-    let ctx = canvas.getContext("2d");
+let blob = new THREE.Mesh(geometry, material);
+scene.add(blob);
 
-    canvas.width = img.width;
-    canvas.height = img.height;
-
-    ctx.drawImage(img, 0, 0);
-    return ctx;
+// TOUCH / MOUSE
+function updateTouch(x, y) {
+  material.uniforms.touch.value.set(x, y);
 }
 
-// ✏️ SKETCH EFFECT
-function applySketch() {
-    let ctx = drawBase();
-    let canvas = ctx.canvas;
+window.addEventListener("mousemove", (e) => {
+  updateTouch(e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight);
+});
 
-    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let data = imageData.data;
+window.addEventListener("touchmove", (e) => {
+  let t = e.touches[0];
+  updateTouch(t.clientX / window.innerWidth, 1 - t.clientY / window.innerHeight);
+});
 
-    // grayscale + edge detection
-    for (let i = 0; i < data.length; i += 4) {
-        let gray = (data[i] + data[i+1] + data[i+2]) / 3;
-        data[i] = data[i+1] = data[i+2] = gray;
-    }
+// ANIMATION
+function animate() {
+  requestAnimationFrame(animate);
 
-    // invert
-    for (let i = 0; i < data.length; i += 4) {
-        data[i] = 255 - data[i];
-        data[i+1] = 255 - data[i+1];
-        data[i+2] = 255 - data[i+2];
-    }
+  material.uniforms.time.value += 0.03;
+  blob.rotation.y += 0.005;
 
-    ctx.putImageData(imageData, 0, 0);
+  renderer.render(scene, camera);
 }
 
-// 🎭 CARTOON EFFECT
-function applyCartoon() {
-    let ctx = drawBase();
-    let canvas = ctx.canvas;
+animate();
 
-    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let data = imageData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-        // reduce colors (posterization)
-        data[i] = Math.floor(data[i] / 64) * 64;
-        data[i+1] = Math.floor(data[i+1] / 64) * 64;
-        data[i+2] = Math.floor(data[i+2] / 64) * 64;
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-}
-
-// 🖌 OIL PAINT EFFECT
-function applyOil() {
-    let ctx = drawBase();
-    let canvas = ctx.canvas;
-
-    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let data = imageData.data;
-    let width = canvas.width;
-
-    let radius = 2;
-
-    let copy = new Uint8ClampedArray(data);
-
-    for (let y = radius; y < canvas.height - radius; y++) {
-        for (let x = radius; x < canvas.width - radius; x++) {
-
-            let r = 0, g = 0, b = 0, count = 0;
-
-            for (let dy = -radius; dy <= radius; dy++) {
-                for (let dx = -radius; dx <= radius; dx++) {
-                    let i = ((y + dy) * width + (x + dx)) * 4;
-                    r += copy[i];
-                    g += copy[i+1];
-                    b += copy[i+2];
-                    count++;
-                }
-            }
-
-            let i = (y * width + x) * 4;
-            data[i] = r / count;
-            data[i+1] = g / count;
-            data[i+2] = b / count;
-        }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-}
+// RESPONSIVE
+window.addEventListener("resize", () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+});
 </script>
 
 </body>
