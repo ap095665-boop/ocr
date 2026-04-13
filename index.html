@@ -1,80 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Image to Text OCR</title>
-  <style>
-    body {
-      font-family: Arial;
-      text-align: center;
-      padding: 20px;
-      background: #111;
-      color: #fff;
-    }
-    input, button {
-      margin: 10px;
-      padding: 10px;
-    }
-    #output {
-      white-space: pre-wrap;
-      margin-top: 20px;
-      background: #222;
-      padding: 15px;
-      border-radius: 10px;
-    }
-    img {
-      max-width: 300px;
-      margin-top: 10px;
-      border-radius: 10px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Accurate OCR Tool</title>
+
+<style>
+  body {
+    font-family: Arial;
+    background: #0f0f0f;
+    color: white;
+    text-align: center;
+    padding: 20px;
+  }
+
+  input, button {
+    padding: 10px;
+    margin: 10px;
+  }
+
+  canvas {
+    max-width: 300px;
+    margin-top: 10px;
+    border-radius: 10px;
+  }
+
+  #output {
+    margin-top: 20px;
+    background: #1f1f1f;
+    padding: 15px;
+    border-radius: 10px;
+    white-space: pre-wrap;
+  }
+</style>
 </head>
+
 <body>
 
-  <h2>📷 Image to Text OCR</h2>
+<h2>🔥 Accurate Image to Text OCR</h2>
 
-  <input type="file" id="imageInput" accept="image/*">
-  <br>
-  <img id="preview" />
-  <br>
-  <button onclick="extractText()">Extract Text</button>
+<input type="file" id="imageInput" accept="image/*">
+<br>
+<canvas id="canvas"></canvas>
+<br>
+<button onclick="processImage()">Extract Text</button>
 
-  <div id="output">Text will appear here...</div>
+<div id="output">Result will appear here...</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
-  <script>
-    const imageInput = document.getElementById('imageInput');
-    const preview = document.getElementById('preview');
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-    imageInput.addEventListener('change', () => {
-      const file = imageInput.files[0];
-      preview.src = URL.createObjectURL(file);
-    });
+let uploadedImage = null;
 
-    function extractText() {
-      const file = imageInput.files[0];
+// Load image
+document.getElementById("imageInput").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  const img = new Image();
+  img.src = URL.createObjectURL(file);
 
-      if (!file) {
-        alert("Please upload an image");
-        return;
-      }
+  img.onload = () => {
+    // Scale image for better OCR
+    canvas.width = img.width * 2;
+    canvas.height = img.height * 2;
 
-      document.getElementById('output').innerText = "Processing... ⏳";
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    uploadedImage = true;
+  };
+});
 
-      Tesseract.recognize(
-        file,
-        'eng',
-        {
-          logger: m => console.log(m)
-        }
-      ).then(({ data: { text } }) => {
-        document.getElementById('output').innerText = text;
-      }).catch(err => {
-        document.getElementById('output').innerText = "Error: " + err;
-      });
+// Process image
+function processImage() {
+  if (!uploadedImage) {
+    alert("Upload image first!");
+    return;
+  }
+
+  let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let data = imageData.data;
+
+  // Preprocessing: grayscale + threshold + contrast boost
+  for (let i = 0; i < data.length; i += 4) {
+    let gray = (data[i] + data[i+1] + data[i+2]) / 3;
+
+    // increase contrast
+    gray = gray > 120 ? 255 : 0;
+
+    data[i] = data[i+1] = data[i+2] = gray;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  document.getElementById("output").innerText = "Processing... ⏳";
+
+  Tesseract.recognize(
+    canvas,
+    'eng',
+    {
+      logger: m => console.log(m),
+      tessedit_pageseg_mode: 6
     }
-  </script>
+  ).then(({ data: { text } }) => {
+
+    // Clean output
+    let cleaned = text
+      .replace(/[^\x20-\x7E\n]/g, "") // remove weird chars
+      .replace(/\s+/g, " ")
+      .trim();
+
+    document.getElementById("output").innerText = cleaned || "No text detected";
+
+  }).catch(err => {
+    document.getElementById("output").innerText = "Error: " + err;
+  });
+}
+</script>
 
 </body>
 </html>
