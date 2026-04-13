@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ultra Accurate OCR</title>
+<title>Sharp OCR Tool</title>
 
 <style>
 body {
@@ -28,7 +28,7 @@ canvas {
 
 <body>
 
-<h2>🔥 High Accuracy OCR (Black Text Mode)</h2>
+<h2>⚡ Sharp Black OCR</h2>
 
 <input type="file" id="imageInput" accept="image/*"><br>
 <canvas id="canvas"></canvas><br>
@@ -51,13 +51,11 @@ document.getElementById("imageInput").addEventListener("change", e => {
   img.src = URL.createObjectURL(file);
 
   img.onload = () => {
-
-    // 🔥 Strong zoom (3x)
+    // 🔍 Zoom 3x
     canvas.width = img.width * 3;
     canvas.height = img.height * 3;
 
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
     ready = true;
   };
 });
@@ -71,22 +69,43 @@ function runOCR() {
   let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   let data = imgData.data;
 
-  // 🔥 Advanced preprocessing
+  // 🔥 STEP 1: Strong contrast + grayscale
   for (let i = 0; i < data.length; i += 4) {
-
     let r = data[i];
-    let g = data[i + 1];
-    let b = data[i + 2];
+    let g = data[i+1];
+    let b = data[i+2];
 
-    // Convert to grayscale
     let gray = 0.299*r + 0.587*g + 0.114*b;
 
-    // 🔥 Hard threshold → PURE BLACK or WHITE
-    if (gray < 140) {
-      data[i] = data[i+1] = data[i+2] = 0;   // BLACK TEXT
-    } else {
-      data[i] = data[i+1] = data[i+2] = 255; // WHITE BG
+    // contrast boost
+    gray = (gray - 128) * 2 + 128;
+
+    data[i] = data[i+1] = data[i+2] = gray;
+  }
+
+  // 🔥 STEP 2: Sharpen filter
+  let w = canvas.width;
+  let h = canvas.height;
+  let copy = new Uint8ClampedArray(data);
+
+  for (let y = 1; y < h-1; y++) {
+    for (let x = 1; x < w-1; x++) {
+      let i = (y*w + x) * 4;
+
+      let sum = 5 * copy[i]
+        - copy[i-4]
+        - copy[i+4]
+        - copy[i-w*4]
+        - copy[i+w*4];
+
+      data[i] = data[i+1] = data[i+2] = Math.min(255, Math.max(0, sum));
     }
+  }
+
+  // 🔥 STEP 3: PURE BLACK / WHITE (NO GREY)
+  for (let i = 0; i < data.length; i += 4) {
+    let val = data[i] < 140 ? 0 : 255;
+    data[i] = data[i+1] = data[i+2] = val;
   }
 
   ctx.putImageData(imgData, 0, 0);
