@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Image to Text OCR</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      padding: 20px;
+      background: #111;
+      color: #fff;
+    }
+    input, button {
+      margin: 10px;
+      padding: 10px;
+    }
+    #output {
+      white-space: pre-wrap;
+      margin-top: 20px;
+      background: #222;
+      padding: 15px;
+      border-radius: 10px;
+    }
+    img {
+      max-width: 300px;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>📷 Image to Text OCR</h2>
+
+  <input type="file" id="imageInput" accept="image/*">
+  <br>
+  <img id="preview" />
+  <br>
+  <button onclick="extractText()">Extract Text</button>
+
+  <div id="output">Text will appear here...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+
+    imageInput.addEventListener('change', () => {
+      const file = imageInput.files[0];
+      preview.src = URL.createObjectURL(file);
+    });
+
+    function extractText() {
+      const file = imageInput.files[0];
+
+      if (!file) {
+        alert("Please upload an image");
+        return;
+      }
+
+      document.getElementById('output').innerText = "Processing... ⏳";
+
+      Tesseract.recognize(
+        file,
+        'eng',
+        {
+          logger: m => console.log(m)
+        }
+      ).then(({ data: { text } }) => {
+        document.getElementById('output').innerText = text;
+      }).catch(err => {
+        document.getElementById('output').innerText = "Error: " + err;
+      });
+    }
+  </script>
+
+</body>
+</html>
