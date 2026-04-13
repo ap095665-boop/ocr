@@ -2,47 +2,37 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Accurate OCR Tool</title>
+<title>Ultra Accurate OCR</title>
 
 <style>
-  body {
-    font-family: Arial;
-    background: #0f0f0f;
-    color: white;
-    text-align: center;
-    padding: 20px;
-  }
-
-  input, button {
-    padding: 10px;
-    margin: 10px;
-  }
-
-  canvas {
-    max-width: 300px;
-    margin-top: 10px;
-    border-radius: 10px;
-  }
-
-  #output {
-    margin-top: 20px;
-    background: #1f1f1f;
-    padding: 15px;
-    border-radius: 10px;
-    white-space: pre-wrap;
-  }
+body {
+  background:#0f0f0f;
+  color:white;
+  text-align:center;
+  font-family:Arial;
+  padding:20px;
+}
+canvas {
+  max-width:320px;
+  margin-top:10px;
+}
+#output {
+  margin-top:20px;
+  background:#1f1f1f;
+  padding:15px;
+  border-radius:10px;
+  white-space:pre-wrap;
+}
 </style>
 </head>
 
 <body>
 
-<h2>🔥 Accurate Image to Text OCR</h2>
+<h2>🔥 High Accuracy OCR (Black Text Mode)</h2>
 
-<input type="file" id="imageInput" accept="image/*">
-<br>
-<canvas id="canvas"></canvas>
-<br>
-<button onclick="processImage()">Extract Text</button>
+<input type="file" id="imageInput" accept="image/*"><br>
+<canvas id="canvas"></canvas><br>
+<button onclick="runOCR()">Extract Text</button>
 
 <div id="output">Result will appear here...</div>
 
@@ -52,45 +42,54 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-let uploadedImage = null;
+let ready = false;
 
 // Load image
-document.getElementById("imageInput").addEventListener("change", function(e) {
+document.getElementById("imageInput").addEventListener("change", e => {
   const file = e.target.files[0];
   const img = new Image();
   img.src = URL.createObjectURL(file);
 
   img.onload = () => {
-    // Scale image for better OCR
-    canvas.width = img.width * 2;
-    canvas.height = img.height * 2;
+
+    // 🔥 Strong zoom (3x)
+    canvas.width = img.width * 3;
+    canvas.height = img.height * 3;
 
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    uploadedImage = true;
+
+    ready = true;
   };
 });
 
-// Process image
-function processImage() {
-  if (!uploadedImage) {
+function runOCR() {
+  if (!ready) {
     alert("Upload image first!");
     return;
   }
 
-  let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  let data = imageData.data;
+  let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let data = imgData.data;
 
-  // Preprocessing: grayscale + threshold + contrast boost
+  // 🔥 Advanced preprocessing
   for (let i = 0; i < data.length; i += 4) {
-    let gray = (data[i] + data[i+1] + data[i+2]) / 3;
 
-    // increase contrast
-    gray = gray > 120 ? 255 : 0;
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
 
-    data[i] = data[i+1] = data[i+2] = gray;
+    // Convert to grayscale
+    let gray = 0.299*r + 0.587*g + 0.114*b;
+
+    // 🔥 Hard threshold → PURE BLACK or WHITE
+    if (gray < 140) {
+      data[i] = data[i+1] = data[i+2] = 0;   // BLACK TEXT
+    } else {
+      data[i] = data[i+1] = data[i+2] = 255; // WHITE BG
+    }
   }
 
-  ctx.putImageData(imageData, 0, 0);
+  ctx.putImageData(imgData, 0, 0);
 
   document.getElementById("output").innerText = "Processing... ⏳";
 
@@ -98,18 +97,18 @@ function processImage() {
     canvas,
     'eng',
     {
-      logger: m => console.log(m),
-      tessedit_pageseg_mode: 6
+      tessedit_pageseg_mode: 6,
+      preserve_interword_spaces: 1
     }
   ).then(({ data: { text } }) => {
 
-    // Clean output
-    let cleaned = text
-      .replace(/[^\x20-\x7E\n]/g, "") // remove weird chars
+    let clean = text
+      .replace(/[^\x20-\x7E\n]/g, "")
       .replace(/\s+/g, " ")
       .trim();
 
-    document.getElementById("output").innerText = cleaned || "No text detected";
+    document.getElementById("output").innerText =
+      clean || "No text detected";
 
   }).catch(err => {
     document.getElementById("output").innerText = "Error: " + err;
