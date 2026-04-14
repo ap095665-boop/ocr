@@ -62,6 +62,7 @@ resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
 
 let particles = [];
+let pointer = { x: null, y: null };
 
 function randomColor() {
     return `hsl(${Math.random()*360}, 100%, ${50 + Math.random()*30}%)`;
@@ -69,41 +70,75 @@ function randomColor() {
 
 function generateArt() {
     particles = [];
-    let count = 150;
+    let count = 180;
 
     for (let i = 0; i < count; i++) {
         particles.push({
             x: Math.random() * canvas.width,
             y: Math.random() * canvas.height,
             size: Math.random() * 3 + 1,
-            speedX: (Math.random() - 0.5) * 2,
-            speedY: (Math.random() - 0.5) * 2,
+            speedX: (Math.random() - 0.5) * 1.5,
+            speedY: (Math.random() - 0.5) * 1.5,
             color: randomColor()
         });
     }
 }
 
+// 🔥 TOUCH + MOUSE EVENTS
+canvas.addEventListener("mousemove", e => {
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+});
+
+canvas.addEventListener("touchmove", e => {
+    pointer.x = e.touches[0].clientX;
+    pointer.y = e.touches[0].clientY;
+});
+
+canvas.addEventListener("mouseleave", () => {
+    pointer.x = null;
+    pointer.y = null;
+});
+
+// DRAW LOOP
 function draw() {
     ctx.fillStyle = "rgba(0,0,0,0.08)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     particles.forEach(p => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.fill();
 
+        // 🔥 INTERACTION FORCE
+        if (pointer.x !== null) {
+            let dx = pointer.x - p.x;
+            let dy = pointer.y - p.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist < 150) {
+                let force = (150 - dist) / 150;
+                p.x -= dx * force * 0.03;
+                p.y -= dy * force * 0.03;
+            }
+        }
+
+        // movement
         p.x += p.speedX;
         p.y += p.speedY;
 
         if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
         if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+
+        // draw particle
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
     });
 
     connectParticles();
     requestAnimationFrame(draw);
 }
 
+// CONNECT LINES
 function connectParticles() {
     for (let a = 0; a < particles.length; a++) {
         for (let b = a; b < particles.length; b++) {
@@ -111,9 +146,9 @@ function connectParticles() {
             let dy = particles[a].y - particles[b].y;
             let dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist < 120) {
+            if (dist < 110) {
                 ctx.strokeStyle = particles[a].color;
-                ctx.lineWidth = 0.3;
+                ctx.lineWidth = 0.4;
                 ctx.beginPath();
                 ctx.moveTo(particles[a].x, particles[a].y);
                 ctx.lineTo(particles[b].x, particles[b].y);
@@ -123,9 +158,10 @@ function connectParticles() {
     }
 }
 
+// SAVE
 function saveImage() {
     let link = document.createElement("a");
-    link.download = "art-wallpaper.png";
+    link.download = "touch-art.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
 }
@@ -135,6 +171,6 @@ canvas.addEventListener("click", generateArt);
 generateArt();
 draw();
 </script>
-
+    
 </body>
 </html>
