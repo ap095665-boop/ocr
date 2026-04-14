@@ -2,115 +2,138 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Fluid Neon Blob</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Art Generator</title>
 <style>
-body {
-  margin: 0;
-  overflow: hidden;
-  background: black;
-}
-canvas {
-  display: block;
-}
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: black;
+        font-family: Arial, sans-serif;
+    }
+
+    canvas {
+        display: block;
+    }
+
+    .controls {
+        position: fixed;
+        bottom: 20px;
+        width: 100%;
+        text-align: center;
+        z-index: 10;
+    }
+
+    button {
+        padding: 10px 20px;
+        margin: 5px;
+        border: none;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.1);
+        color: white;
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        font-size: 16px;
+    }
+
+    button:hover {
+        background: rgba(255,255,255,0.3);
+    }
 </style>
 </head>
 <body>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<canvas id="artCanvas"></canvas>
+
+<div class="controls">
+    <button onclick="generateArt()">🎨 New Art</button>
+    <button onclick="saveImage()">💾 Save Wallpaper</button>
+</div>
 
 <script>
-let scene = new THREE.Scene();
-let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.z = 2;
+const canvas = document.getElementById("artCanvas");
+const ctx = canvas.getContext("2d");
 
-let renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
 
-// GEOMETRY (blob)
-let geometry = new THREE.SphereGeometry(0.8, 128, 128);
+let particles = [];
 
-// SHADER MATERIAL (neon + fluid)
-let material = new THREE.ShaderMaterial({
-  uniforms: {
-    time: { value: 0 },
-    touch: { value: new THREE.Vector2(0, 0) }
-  },
-
-  vertexShader: `
-    uniform float time;
-    uniform vec2 touch;
-    varying vec2 vUv;
-
-    void main() {
-      vUv = uv;
-
-      vec3 pos = position;
-
-      float dist = distance(uv, touch);
-
-      // organic wave
-      pos += normal * sin(time * 2.0 + pos.y * 5.0) * 0.08;
-
-      // touch distortion
-      pos += normal * (0.3 / (dist + 0.1));
-
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-    }
-  `,
-
-  fragmentShader: `
-    varying vec2 vUv;
-    uniform float time;
-
-    void main() {
-      vec3 color;
-
-      // neon gradient
-      color.r = 0.5 + 0.5 * sin(time + vUv.x * 6.0);
-      color.g = 0.5 + 0.5 * sin(time + vUv.y * 6.0);
-      color.b = 0.8 + 0.5 * sin(time);
-
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `
-});
-
-let blob = new THREE.Mesh(geometry, material);
-scene.add(blob);
-
-// TOUCH / MOUSE
-function updateTouch(x, y) {
-  material.uniforms.touch.value.set(x, y);
+function randomColor() {
+    return `hsl(${Math.random()*360}, 100%, ${50 + Math.random()*30}%)`;
 }
 
-window.addEventListener("mousemove", (e) => {
-  updateTouch(e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight);
-});
+function generateArt() {
+    particles = [];
+    let count = 150;
 
-window.addEventListener("touchmove", (e) => {
-  let t = e.touches[0];
-  updateTouch(t.clientX / window.innerWidth, 1 - t.clientY / window.innerHeight);
-});
-
-// ANIMATION
-function animate() {
-  requestAnimationFrame(animate);
-
-  material.uniforms.time.value += 0.03;
-  blob.rotation.y += 0.005;
-
-  renderer.render(scene, camera);
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 3 + 1,
+            speedX: (Math.random() - 0.5) * 2,
+            speedY: (Math.random() - 0.5) * 2,
+            color: randomColor()
+        });
+    }
 }
 
-animate();
+function draw() {
+    ctx.fillStyle = "rgba(0,0,0,0.08)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-// RESPONSIVE
-window.addEventListener("resize", () => {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-});
+    particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+
+        p.x += p.speedX;
+        p.y += p.speedY;
+
+        if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+    });
+
+    connectParticles();
+    requestAnimationFrame(draw);
+}
+
+function connectParticles() {
+    for (let a = 0; a < particles.length; a++) {
+        for (let b = a; b < particles.length; b++) {
+            let dx = particles[a].x - particles[b].x;
+            let dy = particles[a].y - particles[b].y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 120) {
+                ctx.strokeStyle = particles[a].color;
+                ctx.lineWidth = 0.3;
+                ctx.beginPath();
+                ctx.moveTo(particles[a].x, particles[a].y);
+                ctx.lineTo(particles[b].x, particles[b].y);
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+function saveImage() {
+    let link = document.createElement("a");
+    link.download = "art-wallpaper.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+}
+
+canvas.addEventListener("click", generateArt);
+
+generateArt();
+draw();
 </script>
 
 </body>
